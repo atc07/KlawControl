@@ -1,0 +1,16 @@
+{
+  "name": "klaw-control-backend",
+  "version": "1.0.0",
+  "description": "Klaw Control — OpenClaw command center backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "node-pty": "^1.0.0",
+    "cors": "^2.8.5"
+  }
+}
