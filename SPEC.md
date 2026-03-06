@@ -376,29 +376,75 @@ POST /api/voice/conversation  → multi-turn voice conversation (when I have que
 | CosyVoice3 TTS on-device | ~200ms |
 | **Total (end of speech → start of audio)** | **~1.5-3.5 seconds** |
 
-## MVP Scope (v1)
+## Build Phases
 
-### ✅ In Scope
-1. Dashboard with agent list + channel status
-2. Sub-agent detail + kill/steer
-3. Channel health monitoring
-4. Terminal relay to coding sessions
-5. **Voice mode with on-device ASR + TTS**
-6. **Dual response system (voice + text channel)**
-7. **Intent-based channel routing**
-8. **Voice cloning via CosyVoice3**
-9. **Push-to-talk activation**
-10. **Message queue for rapid voice input**
-11. Light/clean modern UI theme
+### Phase 1 — Shell + Dashboard (Week 1)
+Get the app skeleton running with real data from the backend.
+- [ ] Xcode project setup (SwiftUI, iOS 17+, bundle ID `com.atc07.klawcontrol`)
+- [ ] Tab bar with 4 tabs + elevated center mic button (non-functional mic for now)
+- [ ] Dashboard screen: health pills, stat row, main agent card, sub-agent list
+- [ ] Network layer: connect to backend `/api/status`, `/api/agents`
+- [ ] Settings screen: server URL + auth token input, connection status indicator
+- [ ] Auto-refresh polling (5s interval)
+- [ ] Design system: colors, typography, card styles matching reference designs
 
-### ❌ v2 (Later)
+### Phase 2 — Channels + Agent Detail (Week 2)
+Full monitoring capability.
+- [ ] Channels screen: Discord + Telegram cards with platform icons, stats grid, Gateway Health
+- [ ] Agent detail view: tap any agent → task, model, session key, recent output log
+- [ ] Agent actions: kill sub-agent, steer (send message)
+- [ ] Pull-to-refresh on all screens
+- [ ] Error states + offline handling
+
+### Phase 3 — Terminal (Week 3)
+Remote terminal from your phone.
+- [ ] Terminal screen: session tab bar (pill-style), dark terminal body
+- [ ] WebSocket PTY relay to backend (`/ws/terminal/:sid`)
+- [ ] ANSI color rendering
+- [ ] Keyboard input with send button
+- [ ] New session + rename + close/swipe-to-kill
+- [ ] Multiple concurrent sessions
+
+### Phase 4 — Voice Foundation (Week 4)
+On-device speech pipeline.
+- [ ] Integrate `qwen3-asr-swift` Swift package (MLX)
+- [ ] Qwen3-ASR 0.6B: model download on first launch, progress indicator
+- [ ] CosyVoice3 0.5B: model download, voice synthesis
+- [ ] Push-to-talk: hold center mic → record → ASR transcription
+- [ ] TTS playback of response text
+- [ ] Audio session management (AVFoundation)
+
+### Phase 5 — Voice HUD + Dual Response (Week 5)
+The magic.
+- [ ] 25% pull-down HUD overlay (slides from top, content dimmed/blurred behind)
+- [ ] 4 HUD states: Listening (blue gradient), Processing, Speaking (green), Question (purple)
+- [ ] Animated waveform bars synced to audio input/output
+- [ ] Frosted transcript bubble with live text
+- [ ] Backend `/api/voice/message` endpoint: send transcript, receive dual response
+- [ ] Dual response: short voice answer spoken back + detailed text posted to proper channel
+- [ ] Intent-based channel routing (keywords → Discord channel / Telegram DM)
+- [ ] Multi-turn conversation mode (questions one at a time, no turn limit)
+- [ ] Message queue for rapid voice input
+
+### Phase 6 — Voice Cloning + Polish (Week 6)
+Personalization + ship prep.
+- [ ] Voice clone setup in Settings: record/import 10-30s reference clip
+- [ ] CosyVoice3 voice cloning from reference audio
+- [ ] Voice preview (test cloned voice)
+- [ ] Speech speed adjustment
+- [ ] Tailscale connectivity guide / setup helper
+- [ ] TestFlight build + deploy
+- [ ] Bug fixes + performance optimization
+
+### Future (v2+)
 - Push notifications (agent failures, channel disconnects)
 - Bonjour/mDNS auto-discovery (local network)
 - Always-listening wake word ("Hey Arya")
-- PersonaPlex on-device (full speech-to-speech, no network)
+- PersonaPlex on-device (full speech-to-speech, no network needed)
 - Siri Shortcuts integration
 - Apple Watch companion (quick voice commands)
 - Widget for home screen (agent status at a glance)
+- Haptic feedback for voice state transitions
 
 ## Design Direction
 - **Light theme** — iOS-native, clean, modern
