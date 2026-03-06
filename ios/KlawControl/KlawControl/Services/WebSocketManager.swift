@@ -1,9 +1,10 @@
 import Foundation
 
-@Observable
-final class WebSocketManager {
-    var output: String = ""
-    var isConnected = false
+@MainActor
+final class WebSocketManager: ObservableObject {
+    @Published var output: String = ""
+    @Published var isConnected = false
+
     private var task: URLSessionWebSocketTask?
     private var session = URLSession(configuration: .default)
 
@@ -45,7 +46,6 @@ final class WebSocketManager {
                 case .string(let text):
                     Task { @MainActor in
                         self.output += text
-                        // Cap buffer at 100KB
                         if self.output.count > 100_000 {
                             self.output = String(self.output.suffix(80_000))
                         }

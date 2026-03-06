@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct AgentDetailView: View {
-    @Environment(AppState.self) private var state
+    @EnvironmentObject private var state: AppState
     let agent: AgentSession
     @State private var steerMessage = ""
     @State private var showKillConfirm = false

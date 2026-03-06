@@ -5,7 +5,8 @@ struct APIClient {
     let token: String
 
     private func request(_ path: String, method: String = "GET", body: [String: Any]? = nil) async throws -> Data {
-        guard let url = URL(string: "\(baseURL)\(path)") else {
+        let normalizedBaseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        guard let url = URL(string: "\(normalizedBaseURL)\(path)") else {
             throw URLError(.badURL)
         }
 
@@ -80,8 +81,7 @@ struct APIClient {
     }
 
     func testConnection() async throws -> Bool {
-        let data = try await request("/api/health")
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return json?["status"] as? String == "ok"
+        let status = try await getStatus()
+        return status.isOk
     }
 }

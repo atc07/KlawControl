@@ -1,109 +1,79 @@
 import SwiftUI
 
+// Phase 3: WebSocket PTY terminal. For now, this is a UI shell.
 struct TerminalView: View {
-    @Environment(AppState.self) private var state
-    @State private var wsManager = WebSocketManager()
-    @State private var inputText = ""
-    @FocusState private var inputFocused: Bool
+    @EnvironmentObject private var state: AppState
     let sid: String
+
+    @State private var commandText = ""
+
+    var session: TerminalSession? {
+        state.terminals.first(where: { $0.sid == sid })
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Terminal output
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Text(wsManager.output)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.green)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .textSelection(.enabled)
-                        .id("terminal-bottom")
-                }
-                .background(.black)
-                .onChange(of: wsManager.output) {
-                    withAnimation {
-                        proxy.scrollTo("terminal-bottom", anchor: .bottom)
-                    }
-                }
+            // Terminal output area
+            ScrollView {
+                Text(TerminalSession.mockOutput)
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
             }
+            .background(Color(hex: "1C1C1E"))
 
             // Input bar
-            HStack(spacing: 8) {
-                // Quick keys
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        quickKey("Tab", "\t")
-                        quickKey("Esc", "\u{1b}")
-                        quickKey("↑", "\u{1b}[A")
-                        quickKey("↓", "\u{1b}[B")
-                        quickKey("^C", "\u{03}")
-                        quickKey("^D", "\u{04}")
-                        quickKey("^Z", "\u{1a}")
-                        quickKey("^L", "\u{0c}")
-                    }
-                    .padding(.horizontal, 4)
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    Text(">")
+                        .font(.system(size: 15, design: .monospaced))
+                        .foregroundColor(Color.kcSecondaryLabel)
+                    TextField("Enter command...", text: $commandText)
+                        .font(.system(size: 15, design: .monospaced))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.send)
+                        .onSubmit { sendCommand() }
                 }
-                .frame(height: 32)
-            }
-            .background(.ultraThinMaterial)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
 
-            HStack {
-                TextField("$", text: $inputText)
-                    .font(.system(.body, design: .monospaced))
-                    .textFieldStyle(.roundedBorder)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($inputFocused)
-                    .onSubmit {
-                        sendInput()
-                    }
-
-                Button {
-                    sendInput()
-                } label: {
-                    Image(systemName: "return")
-                        .font(.title3)
+                Button(action: sendCommand) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.kcBlue)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.cyan)
+                .disabled(commandText.isEmpty)
             }
-            .padding(8)
-            .background(.ultraThinMaterial)
+            .padding(16)
+            .background(Color.kcBackground)
         }
-        .navigationTitle("Terminal")
+        .navigationTitle(session?.name ?? sid)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Circle()
-                    .fill(wsManager.isConnected ? .green : .red)
-                    .frame(width: 10, height: 10)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.kcGreen)
+                        .frame(width: 8, height: 8)
+                    Text("Live")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.kcSecondaryLabel)
+                }
             }
         }
-        .onAppear {
-            wsManager.connect(baseURL: state.serverURL, token: state.authToken, sid: sid)
-            inputFocused = true
-        }
-        .onDisappear {
-            wsManager.disconnect()
-        }
     }
 
-    private func sendInput() {
-        guard !inputText.isEmpty else {
-            wsManager.send("\r")
-            return
-        }
-        wsManager.send(inputText + "\r")
-        inputText = ""
-    }
-
-    private func quickKey(_ label: String, _ value: String) -> some View {
-        Button(label) {
-            wsManager.send(value)
-        }
-        .font(.system(.caption, design: .monospaced))
-        .buttonStyle(.bordered)
-        .tint(.secondary)
+    private func sendCommand() {
+        guard !commandText.isEmpty else { return }
+        // Phase 3: send via WebSocket
+        commandText = ""
     }
 }
