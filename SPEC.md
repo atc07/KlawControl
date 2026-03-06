@@ -3,6 +3,51 @@
 ## Overview
 iOS command center for OpenClaw. Monitor agents, channel health, manage terminal sessions, and talk to your AI assistant via voice — all from your phone, anywhere.
 
+**This is a product for the OpenClaw community**, not a personal tool. Any OpenClaw user can install the server as a skill and download the iOS app.
+
+## Distribution
+
+### Mac (Server) — OpenClaw Skill
+The backend runs as an OpenClaw skill, installed via:
+```bash
+openclaw install klaw-control
+```
+This adds the Klaw Control server to the user's OpenClaw gateway — no separate process, no separate config. The skill:
+- Exposes REST API + WebSocket endpoints on a configurable port (default 7749)
+- Reads the user's `openclaw.json` to discover channels, agents, and configuration
+- Authenticates via a generated pairing token
+- Starts/stops with the gateway
+
+### iPhone — App Store
+- Download from the App Store (free)
+- First launch → onboarding flow:
+  1. "Install the Klaw Control skill on your Mac" (instructions + link)
+  2. Pair: scan QR code shown by `openclaw klaw-control pair` OR enter server URL manually
+  3. Connection test → ✅ Connected
+- For remote access: recommend Tailscale (free) with in-app setup guide
+
+### Pairing Flow
+```
+Mac terminal:
+$ openclaw klaw-control pair
+🔗 Klaw Control Pairing
+   Local:  http://192.168.1.42:7749
+   Tailscale: http://100.64.0.2:7749
+   Token: kc_a8f3k2m1...
+
+   [QR CODE]
+
+   Scan this QR code in the Klaw Control app, or enter the URL manually.
+```
+QR code encodes: `klawcontrol://pair?url=http://100.64.0.2:7749&token=kc_a8f3k2m1...`
+
+### Generalization Rules
+- **No hardcoded channels or project names** — all discovered from user's OpenClaw config
+- **Intent routing** reads the user's channel list + channel topics/descriptions to route voice messages
+- **Voice cloning** is per-user (reference clip stored locally on their device)
+- **Backend reads `openclaw.json`** for channel names, guild info, configured providers
+- **Works with any OpenClaw setup** — Discord, Telegram, Signal, Slack, whatever channels the user has
+
 ## Architecture
 
 ### System Diagram
@@ -246,8 +291,11 @@ When I (OpenClaw) need to ask clarifying questions:
 - **Auto-refresh**: polling every 5s for dashboard, WebSocket for terminal + voice
 - **VPN**: Tailscale SDK (optional) or manual Tailscale app
 
-### Backend (Node.js on Mac)
-- **Server**: Express + ws
+### Backend (OpenClaw Skill on Mac)
+- **Packaged as**: OpenClaw skill (`openclaw install klaw-control`)
+- **Server**: Express + ws, runs inside the gateway process
+- **Auth**: pairing token generated via `openclaw klaw-control pair` (header-based)
+- **Channel discovery**: reads `openclaw.json` at startup to enumerate all configured channels
 - **Voice endpoint**: `/api/voice/message` — accepts text from phone, returns:
   ```json
   {
@@ -256,11 +304,11 @@ When I (OpenClaw) need to ask clarifying questions:
     "message_id": "1234567890"
   }
   ```
-- **OpenClaw integration**: via OpenClaw JS API or CLI
-  - `openclaw agent --message "..." --thinking low` for voice (fast, concise)
-  - Routes detailed response to proper channel via `openclaw message send`
+- **OpenClaw integration**: via OpenClaw JS API (internal, since it runs as a skill)
+  - Sends voice messages through the gateway's session system
+  - Routes detailed responses to channels via the gateway's message API
 - **Terminal**: node-pty + WebSocket relay
-- **Auth**: shared secret token (header-based)
+- **Dynamic routing**: intent routing uses the user's channel list + topics (no hardcoded mappings)
 
 ### ML Models (on-device, downloaded on first launch)
 | Model | Size | Purpose | Source |
@@ -381,12 +429,15 @@ POST /api/voice/conversation  → multi-turn voice conversation (when I have que
 ### Phase 1 — Shell + Dashboard (Week 1)
 Get the app skeleton running with real data from the backend.
 - [ ] Xcode project setup (SwiftUI, iOS 17+, bundle ID `com.atc07.klawcontrol`)
+- [ ] Onboarding flow: scan QR code or enter server URL + token manually
+- [ ] `klawcontrol://pair` deep link handler for QR pairing
 - [ ] Tab bar with 4 tabs + elevated center mic button (non-functional mic for now)
 - [ ] Dashboard screen: health pills, stat row, main agent card, sub-agent list
 - [ ] Network layer: connect to backend `/api/status`, `/api/agents`
-- [ ] Settings screen: server URL + auth token input, connection status indicator
+- [ ] Settings screen: server URL + auth token, connection status, re-pair option
 - [ ] Auto-refresh polling (5s interval)
 - [ ] Design system: colors, typography, card styles matching reference designs
+- [ ] Backend: package as OpenClaw skill with `openclaw klaw-control pair` command
 
 ### Phase 2 — Channels + Agent Detail (Week 2)
 Full monitoring capability.
@@ -460,14 +511,10 @@ Personalization + ship prep.
 - **Platform icons**: Actual Discord/Telegram logos in channel cards, not emoji
 - **Reference designs**: `design-reference/` directory (7 screens from Claude artifact iterations)
 
-## Distribution
-- **TestFlight** for deployment
-- App name: **Klaw Control**
-- Bundle ID: `com.atc07.klawcontrol`
-
 ## Dependencies
 - `qwen3-asr-swift` — ASR + TTS + CosyVoice (Swift Package, MIT)
-- No other external dependencies — pure Apple frameworks
+- No other external iOS dependencies — pure Apple frameworks
+- Backend: Express, ws, node-pty (bundled in the OpenClaw skill)
 
 ## Resolved Decisions
 - Push-to-talk for v1 (always-listening wake word → v2)
