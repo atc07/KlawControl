@@ -18,8 +18,8 @@ This adds the Klaw Control server to the user's OpenClaw gateway — no separate
 - Authenticates via a generated pairing token
 - Starts/stops with the gateway
 
-### iPhone — App Store
-- Download from the App Store (free)
+### iPhone — TestFlight
+- Distributed via TestFlight (App Store later when ready)
 - First launch → onboarding flow:
   1. "Install the Klaw Control skill on your Mac" (instructions + link)
   2. Pair: scan QR code shown by `openclaw klaw-control pair` OR enter server URL manually
