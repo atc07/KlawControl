@@ -1,89 +1,101 @@
-# Klaw Control — iOS App
+# CLAUDE.md — Klaw Control iOS App
 
-## What This Is
-SwiftUI iOS app for monitoring and controlling an OpenClaw instance. Connects to the Klaw Control backend server running on the user's Mac.
-
-## Tech Stack
-- Swift, SwiftUI, iOS 17+
-- URLSession + URLSessionWebSocketTask (no external deps)
-- @Observable pattern for state management
-
-## App Structure
-
-### Screens
-
-1. **DashboardView** (TabView tab 1)
-   - Agent status cards (main + sub-agents)
-   - Channel health indicators (Discord, Telegram)
-   - Quick stats row (messages today, active agents)
-   - Pull-to-refresh, auto-refresh every 5s
-
-2. **AgentDetailView** (push from dashboard)
-   - Full task description, model, elapsed time
-   - Recent output/messages
-   - Action buttons: Kill, Steer (text input → send message)
-
-3. **ChannelsView** (TabView tab 2)
-   - Per-channel cards with connection status, last activity
-   - Gateway health summary
-
-4. **TerminalsView** (TabView tab 3)
-   - List of active terminal sessions with custom names
-   - "New Session" button → creates session, navigates to terminal
-   - Swipe to delete/kill sessions
-   - Long-press to rename
-
-5. **TerminalView** (push from terminals list)
-   - Full-screen terminal emulator
-   - WebSocket connection to backend PTY relay
-   - ANSI escape code rendering
-   - Keyboard input → sent to WebSocket
-   - Dark background, monospace font
-
-6. **SettingsView** (TabView tab 4)
-   - Server URL (IP:port)
-   - Auth token
-   - Connection test button
-
-### Project Structure
-```
-KlawControl/
-├── KlawControlApp.swift
-├── Models/
-│   ├── AgentSession.swift
-│   ├── ChannelStatus.swift
-│   ├── TerminalSession.swift
-│   └── GatewayHealth.swift
-├── Services/
-│   ├── APIClient.swift          # REST calls
-│   ├── WebSocketManager.swift   # Terminal WS
-│   └── AppState.swift           # @Observable global state
-├── Views/
-│   ├── Dashboard/
-│   │   ├── DashboardView.swift
-│   │   └── AgentCardView.swift
-│   ├── Agents/
-│   │   └── AgentDetailView.swift
-│   ├── Channels/
-│   │   └── ChannelsView.swift
-│   ├── Terminal/
-│   │   ├── TerminalsListView.swift
-│   │   ├── TerminalView.swift
-│   │   └── ANSIParser.swift
-│   └── Settings/
-│       └── SettingsView.swift
-├── Assets.xcassets/
-└── Info.plist
-```
-
-## Bundle ID
-`com.atc07.klawcontrol`
+## Project
+Klaw Control — iOS command center for OpenClaw. Native Swift + SwiftUI.
 
 ## Build
-Xcode 16+, iOS 17+ target, deploy via TestFlight.
+```bash
+cd KlawControl
+xcodebuild -project KlawControl.xcodeproj -scheme KlawControl -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+```
 
-## Design Notes
-- Dark mode primary (fits the terminal/hacker aesthetic)
-- SF Symbols for icons
-- Monospace font for terminal: SF Mono or Menlo
-- Accent color: electric blue or green (claw vibes)
+## Structure
+```
+KlawControl/
+├── KlawControlApp.swift          # App entry, tab bar setup
+├── Models/
+│   ├── AgentSession.swift        # Agent/sub-agent data
+│   ├── ChannelStatus.swift       # Channel connection info
+│   ├── GatewayHealth.swift       # Gateway health data
+│   └── TerminalSession.swift     # Terminal session data
+├── Services/
+│   ├── APIClient.swift           # REST API networking
+│   ├── AppState.swift            # @Observable app state
+│   └── WebSocketManager.swift    # WebSocket for terminal
+├── Views/
+│   ├── Dashboard/
+│   │   ├── DashboardView.swift   # Main dashboard screen
+│   │   └── AgentCardView.swift   # Agent row component
+│   ├── Channels/
+│   │   └── ChannelsView.swift    # Channel status screen
+│   ├── Agents/
+│   │   └── AgentDetailView.swift # Agent drill-in detail
+│   ├── Terminal/
+│   │   ├── TerminalsListView.swift
+│   │   └── TerminalView.swift    # WebSocket PTY terminal
+│   └── Settings/
+│       └── SettingsView.swift    # Server URL, auth, prefs
+└── Assets.xcassets/
+```
+
+## Phase 1 Task — Shell + Dashboard
+Rebuild the app from the existing scaffold to match the new design spec.
+
+### Design Requirements (CRITICAL — follow these exactly)
+- **Light theme, iOS-native**: `#F2F2F7` grouped background, white cards with subtle shadows
+- **Large title navigation** per iOS HIG
+- **SF Symbols line icons** — no emoji anywhere
+- **Tab bar**: 4 tabs + elevated center mic button
+  - Tab 1: Dashboard (chart.bar icon)
+  - Tab 2: Channels (bubble.left.and.bubble.right icon)
+  - Center: Elevated mic button (mic.fill, larger, filled blue circle `#007AFF`)
+  - Tab 3: Terminal (terminal icon)
+  - Tab 4: Settings (gearshape icon)
+- **iOS system colors**: `#007AFF` blue, `#34C759` green, `#FF9500` orange, `#FF3B30` red
+- **Status badges**: Pill-shaped — ACTIVE (green bg), RUNNING (blue bg), DONE (gray bg)
+- **Agent icons**: Colored circles (40x40) with SF Symbols inside:
+  - Main agent: orange circle with `brain` icon
+  - Sub-agents: varied colors (blue=gear, purple=magnifyingglass, green=checkmark)
+- **Cards**: White background, cornerRadius(16), shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+- **Health pills**: Row of rounded pills at top of dashboard (Gateway ● , Discord ● , Telegram ●)
+  - Green dot + text for connected, orange for warning, red for disconnected
+- **Stat row**: 3 boxes (Messages, Agents, Tokens) with large blue numbers
+- **Chevron disclosure** on main agent card (tappable → agent detail)
+
+### Screens to Build
+1. **Onboarding** — First launch: enter server URL + auth token, or scan QR code
+   - Deep link handler for `klawcontrol://pair?url=...&token=...`
+   - Connection test button → shows ✅ Connected or ❌ error
+2. **Dashboard** — Health pills, stats, main agent card, sub-agent list
+3. **Channels** — Discord + Telegram cards with platform SF Symbols, 2x2 stats grid, Gateway Health section
+4. **Terminal** — Session tabs (pills), dark terminal view, command input (placeholder for Phase 3 WebSocket)
+5. **Settings** — Connection section, Voice section (placeholder), Notifications toggles, About
+
+### Architecture
+- `@Observable` pattern for state management
+- `APIClient` with async/await for networking
+- Auto-refresh: Timer-based polling every 5 seconds
+- Keychain storage for auth token
+- UserDefaults for server URL and preferences
+
+### API Endpoints (mock data OK for now, real endpoints later)
+```
+GET /api/status    → GatewayHealth
+GET /api/agents    → [AgentSession]
+GET /api/channels  → [ChannelStatus]
+```
+
+### What NOT to do
+- No emoji in the UI — SF Symbols only
+- No hardcoded channel names or project-specific data
+- Don't implement voice features yet (Phase 4-5)
+- Don't implement WebSocket terminal yet (Phase 3) — just the UI shell
+- Don't use any third-party dependencies
+
+### Design Reference
+See `../design-reference/` for 7 reference screenshots showing the target design.
+Read the images in that directory to understand the visual direction.
+
+## Git
+- Commit directly to `main`
+- Commit frequently
