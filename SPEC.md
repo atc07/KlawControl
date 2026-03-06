@@ -91,12 +91,54 @@ iOS command center for OpenClaw. Monitor agents, channel health, manage terminal
 The killer feature. A voice interface to OpenClaw that routes intelligently.
 
 #### Voice Mode UI
-- **Floating mic button** — accessible from any screen (bottom-right, above tab bar)
-- Tap to activate → expands into voice mode overlay
-- **Push-to-talk**: hold the button to speak, release to send
-- **Visual feedback**: waveform animation while listening, pulsing dot while processing
-- **Conversation history**: scrollable list of recent voice exchanges (last 10)
-- **Full-screen option**: tap to expand voice mode into dedicated screen
+- **Elevated center mic button** in the tab bar — always accessible from any screen
+- Tap to activate → **25% pull-down HUD** slides from top of screen
+- Dashboard/content stays visible underneath (dimmed + slight blur)
+- **Push-to-talk**: hold the mic to speak, release to send
+- **Waveform visualization**: animated audio bars synced to speech
+- **Transcript bubble**: frosted glass bubble showing live transcription / response text
+- **Voice history resets each session** — no persistence across app launches
+
+#### Voice HUD States (25% pull-down overlay)
+Each state has a distinct gradient color + waveform behavior:
+
+1. **Listening** (you speaking)
+   - Gradient: Blue → Purple (top-down, ~25% height)
+   - Waveform: Active, responding to voice input
+   - Label: "Listening..."
+   - Transcript: Live transcription of your speech
+   - Hint: "Release to send"
+
+2. **Processing** (thinking)
+   - Gradient: Same blue → purple, slightly dimmed
+   - Waveform: Idle/subtle pulse
+   - Label: "Thinking..."
+   - Transcript: Shows what you said
+
+3. **Arya Speaking** (my response)
+   - Gradient: Green → Blue (top-down)
+   - Waveform: Active, synced to TTS output
+   - Label: "⚡ Arya"
+   - Transcript: Response text (e.g. "Done — posted in the underwriting channel.")
+   - Hint: "Tap to interrupt"
+
+4. **Arya Asking Question** (clarification needed)
+   - Gradient: Purple → Pink (top-down)
+   - Waveform: Active
+   - Label: "⚡ Arya has a question"
+   - Transcript: The question (e.g. "Staging or production?")
+   - Hint: "Hold mic to answer"
+   - Center mic button changes to ❓ icon
+
+#### Tab Bar
+4 tabs + elevated center mic:
+- Dashboard (bar chart icon)
+- Channels (chat bubble icon)
+- **[Center: Elevated mic button]** — larger, filled, primary CTA
+- Terminal (>_ icon)
+- Settings (gear icon)
+
+No dedicated Voice tab — the mic button + pull-down HUD handles everything.
 
 #### Voice Pipeline (On-Device)
 ```
@@ -359,11 +401,18 @@ POST /api/voice/conversation  → multi-turn voice conversation (when I have que
 - Widget for home screen (agent status at a glance)
 
 ## Design Direction
-- **Light theme** — clean, modern, minimal
-- **Design language**: SF Symbols, system colors, rounded corners
-- **Inspiration**: Apple Health app, Shortcuts app, Arc browser
+- **Light theme** — iOS-native, clean, modern
+- **iOS HIG compliant**: large titles, grouped table views, system colors
+- **Colors**: `#F2F2F7` grouped background, white cards, `#007AFF` blue, `#34C759` green, `#FF9500` orange
+- **Icons**: SF Symbol-style line icons (no emoji) — bar chart, chat bubble, mic, terminal prompt, gear
 - **Typography**: SF Pro (system), SF Mono (terminal)
-- **Voice UI**: inspired by ChatGPT voice mode — minimal, centered, waveform animation
+- **Cards**: White with subtle shadows, no harsh borders. Colorful circular icons per item (orange for main agent, etc.)
+- **Status badges**: Pill-shaped — ACTIVE (green), RUNNING (blue), DONE (gray/green)
+- **Tab bar**: 4 tabs + elevated center mic button (larger, filled blue circle)
+- **Voice HUD**: 25% pull-down from top with gradient overlay, waveform bars, frosted transcript bubble. Content underneath dimmed + blurred.
+- **Voice gradients**: Blue/purple = listening, Green = Arya speaking, Purple/pink = Arya asking question
+- **Platform icons**: Actual Discord/Telegram logos in channel cards, not emoji
+- **Reference designs**: `design-reference/` directory (7 screens from Claude artifact iterations)
 
 ## Distribution
 - **TestFlight** for deployment
@@ -374,8 +423,13 @@ POST /api/voice/conversation  → multi-turn voice conversation (when I have que
 - `qwen3-asr-swift` — ASR + TTS + CosyVoice (Swift Package, MIT)
 - No other external dependencies — pure Apple frameworks
 
+## Resolved Decisions
+- Push-to-talk for v1 (always-listening wake word → v2)
+- Voice history resets each session (ephemeral)
+- No max conversation turns — runs as long as needed
+- Mic button: elevated center of tab bar (not floating)
+- Voice overlay: 25% pull-down HUD (not full-screen takeover)
+- 4 tabs + center mic (no dedicated Voice tab)
+
 ## Open Questions
-1. ~~Push-to-talk vs always-listening~~ → Push-to-talk for v1
-2. Should voice history persist across app launches or be ephemeral?
-3. Max conversation turns before auto-ending a multi-question flow?
-4. Should the floating mic button be customizable (position, size)?
+_None currently — spec is ready for build._
