@@ -123,10 +123,11 @@ struct SettingsView: View {
             }
 
             if let result = connectionResult {
-                HStack(spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
                     Image(systemName: result.icon)
+                        .padding(.top, 1)
                     Text(result.text)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(result.color)
@@ -280,6 +281,9 @@ struct SettingsView: View {
             do {
                 let ok = try await client.testConnection()
                 if ok {
+                    state.serverURL = normalizedURL
+                    state.authToken = authToken
+                    await state.refreshAll()
                     connectionResult = .success
                 } else {
                     connectionResult = .failure("Server responded but status was not ok")

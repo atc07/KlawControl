@@ -11,20 +11,19 @@ struct DashboardView: View {
         state.agents.filter { $0.kind == "sub-agent" }
     }
 
-    private var discordChannel: ChannelStatus {
-        state.channels.first(where: { $0.id.lowercased() == "discord" })
-            ?? ChannelStatus.mockData[0]
+    private var hasConfiguredServer: Bool {
+        !state.normalizedServerURL.isEmpty
     }
 
-    private var telegramChannel: ChannelStatus {
-        state.channels.first(where: { $0.id.lowercased() == "telegram" })
-            ?? ChannelStatus.mockData[1]
+    private var totalAgentCount: Int {
+        state.agents.count
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    connectionBanner
                     healthPillsRow
                     statsCard
                     mainAgentSection
@@ -47,8 +46,8 @@ struct DashboardView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 HealthPill(name: "Gateway", state: state.gatewayHealth?.isOk == true ? .connected : .disconnected)
-                HealthPill(name: "Discord", state: discordChannel.healthState)
-                HealthPill(name: "Telegram", state: telegramChannel.healthState)
+                HealthPill(name: "Discord", state: channelHealth(for: "discord"))
+                HealthPill(name: "Telegram", state: channelHealth(for: "telegram"))
             }
             .padding(.vertical, 2)
         }
@@ -60,11 +59,15 @@ struct DashboardView: View {
             Rectangle()
                 .fill(Color(hex: "E5E5EA"))
                 .frame(width: 0.5)
-            StatBox(value: "\(subAgents.count)", label: "AGENTS")
+            StatBox(value: "\(totalAgentCount)", label: "AGENTS")
             Rectangle()
                 .fill(Color(hex: "E5E5EA"))
                 .frame(width: 0.5)
-            StatBox(value: formatTokens(state.totalTokens), label: "TOKENS")
+            StatBox(
+                value: state.totalTokens.map(formatTokens) ?? "--",
+                label: "TOKENS",
+                valueColor: state.totalTokens == nil ? Color.kcSecondaryLabel : Color.kcBlue
+            )
         }
         .frame(height: 88)
         .cardStyle()
@@ -94,6 +97,27 @@ struct DashboardView: View {
                     .padding(16)
                     .cardStyle()
             }
+        }
+    }
+
+    @ViewBuilder
+    private var connectionBanner: some View {
+        if hasConfiguredServer && !state.isConnected {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "wifi.exclamationmark")
+                    .foregroundColor(Color.kcOrange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Server unavailable")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color.kcLabel)
+                    Text(state.lastError ?? "Check the host, port, or auth token in Settings.")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color.kcSecondaryLabel)
+                }
+                Spacer()
+            }
+            .padding(14)
+            .cardStyle()
         }
     }
 
@@ -146,6 +170,13 @@ struct DashboardView: View {
         if n >= 1_000 { return String(format: "%.0fK", Double(n) / 1_000) }
         return "\(n)"
     }
+
+    private func channelHealth(for id: String) -> ChannelStatus.HealthState {
+        if let channel = state.channels.first(where: { $0.id.caseInsensitiveCompare(id) == .orderedSame }) {
+            return channel.healthState
+        }
+        return state.isConnected ? .warning : .disconnected
+    }
 }
 
 // MARK: - Health Pill
@@ -184,12 +215,13 @@ struct HealthPill: View {
 struct StatBox: View {
     let value: String
     let label: String
+    var valueColor: Color = Color.kcBlue
 
     var body: some View {
         VStack(spacing: 4) {
             Text(value)
                 .font(.system(size: 26, weight: .bold, design: .rounded))
-                .foregroundColor(Color.kcBlue)
+                .foregroundColor(valueColor)
             Text(label)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(Color.kcSecondaryLabel)
@@ -245,7 +277,10 @@ struct SubAgentsList: View {
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(agents.enumerated()), id: \.element.id) { index, agent in
-                SubAgentRow(agent: agent, index: index)
+                NavigationLink(destination: AgentDetailView(agent: agent)) {
+                    SubAgentRow(agent: agent, index: index)
+                }
+                .buttonStyle(.plain)
                 if index < agents.count - 1 {
                     Rectangle()
                         .fill(Color(hex: "F2F2F7"))

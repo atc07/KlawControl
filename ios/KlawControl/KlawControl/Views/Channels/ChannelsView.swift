@@ -3,18 +3,36 @@ import SwiftUI
 struct ChannelsView: View {
     @EnvironmentObject private var state: AppState
 
-    private var displayedChannels: [ChannelStatus] {
-        let discord = state.channels.first(where: { $0.id.lowercased() == "discord" }) ?? ChannelStatus.mockData[0]
-        let telegram = state.channels.first(where: { $0.id.lowercased() == "telegram" }) ?? ChannelStatus.mockData[1]
-        return [discord, telegram]
+    struct ChannelDefinition: Identifiable {
+        let id: String
+        let title: String
+        let icon: String
+        let color: Color
+    }
+
+    private let supportedChannels: [ChannelDefinition] = [
+        ChannelDefinition(id: "discord", title: "Discord", icon: "bubble.left.and.bubble.right", color: Color(hex: "5865F2")),
+        ChannelDefinition(id: "telegram", title: "Telegram", icon: "paperplane", color: Color(hex: "2AABEE"))
+    ]
+
+    private var hasConfiguredServer: Bool {
+        !state.normalizedServerURL.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    ForEach(displayedChannels) { channel in
-                        ChannelCard(channel: channel)
+                    if hasConfiguredServer && !state.isConnected {
+                        disconnectedBanner
+                    }
+
+                    ForEach(supportedChannels) { definition in
+                        ChannelCard(
+                            definition: definition,
+                            channel: state.channels.first(where: { $0.id.caseInsensitiveCompare(definition.id) == .orderedSame }),
+                            serverReachable: state.isConnected
+                        )
                     }
 
                     if let health = state.gatewayHealth {
@@ -33,30 +51,38 @@ struct ChannelsView: View {
             }
         }
     }
+
+    private var disconnectedBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "antenna.radiowaves.left.and.right.slash")
+                .foregroundColor(Color.kcOrange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Channel data unavailable")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Color.kcLabel)
+                Text(state.lastError ?? "Reconnect to load live channel health.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color.kcSecondaryLabel)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .cardStyle()
+    }
 }
 
 // MARK: - Channel Card
 
 struct ChannelCard: View {
-    let channel: ChannelStatus
-
-    private var platformIcon: String {
-        switch channel.id.lowercased() {
-        case "discord": return "bubble.left.and.bubble.right"
-        case "telegram": return "paperplane"
-        default: return "antenna.radiowaves.left.and.right"
-        }
-    }
-
-    private var platformColor: Color {
-        switch channel.id.lowercased() {
-        case "discord": return Color(hex: "5865F2")
-        case "telegram": return Color(hex: "2AABEE")
-        default: return Color.kcBlue
-        }
-    }
+    let definition: ChannelsView.ChannelDefinition
+    let channel: ChannelStatus?
+    let serverReachable: Bool
 
     private var connectionColor: Color {
+        guard let channel else {
+            return serverReachable ? Color.kcOrange : Color.kcRed
+        }
+
         switch channel.healthState {
         case .connected: return Color.kcGreen
         case .warning: return Color.kcOrange
@@ -64,19 +90,26 @@ struct ChannelCard: View {
         }
     }
 
+    private var connectionLabel: String {
+        if let channel {
+            return channel.connectionLabel
+        }
+        return serverReachable ? "Unavailable" : "Offline"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(platformColor)
+                        .fill(definition.color)
                         .frame(width: 48, height: 48)
-                    Image(systemName: platformIcon)
+                    Image(systemName: definition.icon)
                         .font(.system(size: 21, weight: .semibold))
                         .foregroundColor(.white)
                 }
 
-                Text(channel.displayName)
+                Text(definition.title)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(Color.kcLabel)
 
@@ -86,7 +119,7 @@ struct ChannelCard: View {
                     Circle()
                         .fill(connectionColor)
                         .frame(width: 8, height: 8)
-                    Text(channel.connectionLabel)
+                    Text(connectionLabel)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(connectionColor)
                 }
@@ -98,24 +131,38 @@ struct ChannelCard: View {
             .padding(16)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 1) {
-                ChannelStatCell(label: "LAST IN", value: channel.lastMessageIn ?? "-")
-                ChannelStatCell(label: "LAST OUT", value: channel.lastMessageOut ?? "-")
-                ChannelStatCell(
-                    label: "ACTIVE CHANNELS",
-                    value: channel.activeChannels.map { "\($0)/\(channel.totalChannels ?? $0)" } ?? "-"
-                )
+                ChannelStatCell(label: "LAST IN", value: channel?.lastMessageIn ?? "--")
+                ChannelStatCell(label: "LAST OUT", value: channel?.lastMessageOut ?? "--")
+                ChannelStatCell(label: "ACTIVE CHANNELS", value: activeChannelSummary)
                 ChannelStatCell(
                     label: "MESSAGES TODAY",
-                    value: channel.messagesToday.map(String.init) ?? "-",
-                    valueColor: Color.kcBlue
+                    value: channel?.messagesToday.map(String.init) ?? "--",
+                    valueColor: channel?.messagesToday == nil ? Color.kcSecondaryLabel : Color.kcBlue
                 )
             }
             .background(Color(hex: "F2F2F7"))
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
+
+            if channel == nil {
+                Text(serverReachable ? "Channel not reported by the server." : "Reconnect to load this channel.")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color.kcSecondaryLabel)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+            }
         }
         .cardStyle()
+    }
+
+    private var activeChannelSummary: String {
+        guard let channel else { return "--" }
+        if let active = channel.activeChannels {
+            return "\(active)/\(channel.totalChannels ?? active)"
+        }
+        return "--"
     }
 }
 

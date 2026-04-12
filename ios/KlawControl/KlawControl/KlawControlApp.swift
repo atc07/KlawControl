@@ -356,6 +356,7 @@ struct OnboardingView: View {
 struct MainTabView: View {
     @EnvironmentObject private var state: AppState
     @State private var selectedTab = 0
+    @State private var showingVoiceSheet = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -372,7 +373,7 @@ struct MainTabView: View {
                 Color.clear.frame(height: 83)
             }
 
-            CustomTabBar(selectedTab: $selectedTab)
+            CustomTabBar(selectedTab: $selectedTab, showingVoiceSheet: $showingVoiceSheet)
         }
         .ignoresSafeArea(edges: .bottom)
         .onAppear {
@@ -381,6 +382,11 @@ struct MainTabView: View {
         .onDisappear {
             state.stopAutoRefresh()
         }
+        .sheet(isPresented: $showingVoiceSheet) {
+            VoicePlaceholderSheet()
+                .presentationDetents([.fraction(0.3)])
+                .presentationDragIndicator(.visible)
+        }
     }
 }
 
@@ -388,6 +394,7 @@ struct MainTabView: View {
 
 struct CustomTabBar: View {
     @Binding var selectedTab: Int
+    @Binding var showingVoiceSheet: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -399,7 +406,9 @@ struct CustomTabBar: View {
                 TabBarButton(icon: "chart.bar", label: "Dashboard", tag: 0, selectedTab: $selectedTab)
                 TabBarButton(icon: "bubble.left.and.bubble.right", label: "Channels", tag: 1, selectedTab: $selectedTab)
 
-                Button(action: {}) {
+                Button {
+                    showingVoiceSheet = true
+                } label: {
                     ZStack {
                         Circle()
                             .fill(Color.kcBlue)
@@ -423,6 +432,33 @@ struct CustomTabBar: View {
                 .frame(height: 34)
         }
         .background(Color.white)
+    }
+}
+
+struct VoicePlaceholderSheet: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Circle()
+                .fill(Color.kcBlue.opacity(0.12))
+                .frame(width: 68, height: 68)
+                .overlay {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(Color.kcBlue)
+                }
+
+            VStack(spacing: 6) {
+                Text("Voice control is not ready yet")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(Color.kcLabel)
+                Text("The mic button now explains the feature instead of acting like a broken control.")
+                    .font(.system(size: 14))
+                    .foregroundColor(Color.kcSecondaryLabel)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(24)
+        .presentationBackground(Color.kcBackground)
     }
 }
 

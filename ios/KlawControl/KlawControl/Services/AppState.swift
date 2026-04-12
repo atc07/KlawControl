@@ -53,8 +53,8 @@ final class AppState: ObservableObject {
     @Published var gatewayHealth: GatewayHealth? = GatewayHealth.mock
 
     // Stats
-    @Published var messagesToday: Int = 147
-    @Published var totalTokens: Int = 2_100_000
+    @Published var messagesToday: Int = ChannelStatus.mockData.compactMap(\.messagesToday).reduce(0, +)
+    @Published var totalTokens: Int? = 2_100_000
 
     @Published var isConnected = false
     @Published var lastError: String?
@@ -106,10 +106,12 @@ final class AppState: ObservableObject {
             lastError = nil
         } else {
             isConnected = false
+            lastError = "Unable to reach the Klaw Control server."
         }
 
         if let channelData = try? await channelsResult {
             channels = channelData
+            messagesToday = channelData.compactMap(\.messagesToday).reduce(0, +)
         }
 
         if let terminalData = try? await terminalsResult {
@@ -118,6 +120,10 @@ final class AppState: ObservableObject {
 
         if let agentData = try? await agentsResult {
             agents = agentData
+        }
+
+        if isConnected {
+            totalTokens = nil
         }
     }
 }

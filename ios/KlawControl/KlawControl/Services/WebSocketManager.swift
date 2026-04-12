@@ -4,67 +4,117 @@ import Foundation
 final class WebSocketManager: ObservableObject {
     @Published var output: String = ""
     @Published var isConnected = false
+    @Published var lastError: String?
 
     private var task: URLSessionWebSocketTask?
-    private var session = URLSession(configuration: .default)
+    private let session = URLSession(configuration: .default)
+    private var receiveTask: Task<Void, Never>?
+    private var currentConnectionID: String?
 
     func connect(baseURL: String, token: String, sid: String) {
-        let wsURL = baseURL
-            .replacingOccurrences(of: "http://", with: "ws://")
-            .replacingOccurrences(of: "https://", with: "wss://")
+        let connectionID = "\(baseURL)|\(sid)|\(token)"
+        guard currentConnectionID != connectionID || !isConnected else { return }
 
-        let tokenParam = token.isEmpty ? "" : "?token=\(token)"
-        guard let url = URL(string: "\(wsURL)/api/terminals/\(sid)/ws\(tokenParam)") else { return }
+        disconnect()
 
-        task = session.webSocketTask(with: url)
-        task?.resume()
+        guard let url = websocketURL(baseURL: baseURL, token: token, sid: sid) else {
+            lastError = "Invalid terminal connection URL."
+            return
+        }
+
+        output = ""
+        let webSocketTask = session.webSocketTask(with: url)
+        task = webSocketTask
+        currentConnectionID = connectionID
+        webSocketTask.resume()
+
         isConnected = true
-        receiveLoop()
+        lastError = nil
+
+        receiveTask = Task { [weak self] in
+            await self?.receiveLoop()
+        }
     }
 
     func send(_ text: String) {
-        task?.send(.string(text)) { _ in }
+        guard let task else { return }
+
+        Task {
+            do {
+                try await task.send(.string(text))
+            } catch {
+                await MainActor.run {
+                    self.lastError = error.localizedDescription
+                    self.isConnected = false
+                }
+            }
+        }
     }
 
     func sendResize(cols: Int, rows: Int) {
         let json = "{\"type\":\"resize\",\"cols\":\(cols),\"rows\":\(rows)}"
-        task?.send(.string(json)) { _ in }
+        send(json)
     }
 
     func disconnect() {
+        receiveTask?.cancel()
+        receiveTask = nil
+
         task?.cancel(with: .normalClosure, reason: nil)
         task = nil
         isConnected = false
+        currentConnectionID = nil
     }
 
-    private func receiveLoop() {
-        task?.receive { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .success(let message):
+    func clearOutput() {
+        output = ""
+    }
+
+    private func websocketURL(baseURL: String, token: String, sid: String) -> URL? {
+        let normalizedBaseURL: String
+        if baseURL.hasPrefix("http://") || baseURL.hasPrefix("https://") {
+            normalizedBaseURL = baseURL
+        } else {
+            normalizedBaseURL = "http://\(baseURL)"
+        }
+
+        guard var components = URLComponents(string: normalizedBaseURL) else { return nil }
+        components.scheme = components.scheme == "https" ? "wss" : "ws"
+        components.path = "/api/terminals/\(sid)/ws"
+        if !token.isEmpty {
+            components.queryItems = [URLQueryItem(name: "token", value: token)]
+        }
+        return components.url
+    }
+
+    private func receiveLoop() async {
+        guard let task else { return }
+
+        do {
+            while !Task.isCancelled {
+                let message = try await task.receive()
                 switch message {
                 case .string(let text):
-                    Task { @MainActor in
-                        self.output += text
-                        if self.output.count > 100_000 {
-                            self.output = String(self.output.suffix(80_000))
-                        }
-                    }
+                    append(text)
                 case .data(let data):
                     if let text = String(data: data, encoding: .utf8) {
-                        Task { @MainActor in
-                            self.output += text
-                        }
+                        append(text)
                     }
                 @unknown default:
                     break
                 }
-                self.receiveLoop()
-            case .failure:
-                Task { @MainActor in
-                    self.isConnected = false
-                }
             }
+        } catch {
+            guard !Task.isCancelled else { return }
+            isConnected = false
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func append(_ text: String) {
+        output += text
+        if output.count > 100_000 {
+            output = String(output.suffix(80_000))
         }
     }
 }
