@@ -293,6 +293,48 @@ app.get('/api/voice/clone/reference', (req, res) => {
   res.sendFile(referencePath);
 });
 
+// Voicebox reachability + model readiness check used by the iOS app before starting a clone session.
+app.get('/api/voice/clone/readiness', async (req, res) => {
+  const voiceboxUrl = process.env.VOICEBOX_URL || 'http://127.0.0.1:17493';
+  const startedAt = Date.now();
+
+  let health = null;
+  let reachable = false;
+  try {
+    const raw = await new Promise((resolve, reject) => {
+      const mod = voiceboxUrl.startsWith('https') ? require('https') : require('http');
+      const req = mod.get(`${voiceboxUrl}/health`, { timeout: 3000 }, (r) => {
+        let body = '';
+        r.on('data', (c) => { body += c; });
+        r.on('end', () => resolve(body));
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    });
+    health = JSON.parse(raw);
+    reachable = true;
+  } catch (_) {}
+
+  const latencyMs = Date.now() - startedAt;
+  const healthy = reachable && health?.status === 'healthy';
+  const modelLoaded = reachable && health?.model_loaded === true;
+  const modelSize = health?.model_size ?? null;
+
+  res.json({
+    ready: healthy && modelLoaded,
+    checks: {
+      voicebox: {
+        reachable,
+        healthy,
+        model_loaded: modelLoaded,
+        model_size: modelSize,
+        latency_ms: latencyMs,
+        url: voiceboxUrl,
+      },
+    },
+  });
+});
+
 // Legacy one-shot clone
 app.post('/api/voice/clone', async (req, res) => {
   const { url, startSec, durationSec } = req.body;
